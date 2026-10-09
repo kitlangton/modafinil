@@ -1,0 +1,24 @@
+[package]
+name = "modafinil-cli"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+description = "Power-aware macOS keep-awake CLI with optional AC-only closed-lid support"
+license = "MIT"
+repository = "https://github.com/kitlangton/modafinil"
+readme = "README.md"
+keywords = ["macos", "sleep", "caffeinate", "cli"]
+categories = ["command-line-utilities"]
+include = ["src/**", "tests/**", "Cargo.toml", "Cargo.lock", "README.md", "LICENSE", "AGENTS.md"]
+
+[[bin]]
+name = "modafinil"
+path = "src/main.rs"
+
+[dependencies]
+clap = { version = "4.5", features = ["derive"] }
+fs2 = "0.4"
+libc = "0.2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+signal-hook = "0.3"
