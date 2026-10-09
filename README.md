@@ -6,7 +6,15 @@ This is an independent Rust CLI, unrelated to the existing Modafinil menu-bar ap
 
 ## Install
 
-Requires macOS and [Rust](https://rustup.rs/). Ordinary keep-awake needs no administrator permission.
+Homebrew (prebuilt Apple Silicon and Intel binaries, macOS 13 or later):
+
+```sh
+brew install kitlangton/tap/modafinil
+modafinil install
+modafinil status
+```
+
+Or install from Cargo with [Rust](https://rustup.rs/):
 
 ```sh
 cargo install modafinil-cli --locked
@@ -80,7 +88,7 @@ Do not just clear the flag while a healthy helper is running on AC; it will re-e
 ```sh
 modafinil status --json
 modafinil uninstall          # Removes launchd services and their installed copies.
-cargo uninstall modafinil-cli
+brew uninstall modafinil     # Or: cargo uninstall modafinil-cli
 ```
 
 Uninstall retains settings and logs and clears the saved closed-lid preference. It asks for administrator approval only when the privileged helper is installed. `stop` refuses while the lid helper is installed; use `set --mode off` to stop both policies safely.
@@ -99,7 +107,9 @@ Files:
 
 Saved preferences and installed service state are reported separately. `awake_requested` is a policy result, not proof an assertion is active. `sleep_disabled` is read back from macOS and may have been set by another tool.
 
-To update, run `cargo install modafinil-cli --locked --force`, then `modafinil install`. If using closed-lid support, also run `modafinil set --closed-lid on` to update the root-owned helper, with administrator approval.
+To update, run `brew upgrade modafinil` (or `cargo install modafinil-cli --locked --force`), then `modafinil install`. If using closed-lid support, also run `modafinil set --closed-lid on` to update the root-owned helper, with administrator approval.
+
+Removing the Homebrew/Cargo package alone does not stop the independently installed services. Run `modafinil uninstall` before removing the package.
 
 ## Development
 

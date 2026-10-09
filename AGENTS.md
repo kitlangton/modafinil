@@ -33,3 +33,5 @@ cargo package --locked
 ## Releases
 
 Validate tests, formatting and Clippy; inspect `cargo package --list` and the packaged crate; build from a clean consumer before publishing. Publish with `cargo publish --locked`, then verify the registry download and install. Publishing and pushing require the owner's explicit approval. Do not add AI attribution to commits.
+
+Tagged releases (`v<crate-version>`) build/test native Apple Silicon and Intel binaries in `.github/workflows/release.yml`, then publish tarballs and checksums to GitHub Releases. Both builds must pass before publication. Update `kitlangton/homebrew-tap` with the actual archive SHA-256 values and verify a real Homebrew install and formula test before sharing installation instructions. Homebrew installation must not start services or enable privileged features automatically.

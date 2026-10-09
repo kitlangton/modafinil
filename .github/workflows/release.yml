@@ -1,0 +1,79 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-15
+            target: aarch64-apple-darwin
+            archive: modafinil-darwin-arm64.tar.gz
+          - os: macos-15-intel
+            target: x86_64-apple-darwin
+            archive: modafinil-darwin-x64.tar.gz
+    runs-on: ${{ matrix.os }}
+    env:
+      MACOSX_DEPLOYMENT_TARGET: "13.0"
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+          components: rustfmt, clippy
+      - name: Verify tag and version
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          version=$(python3 -c 'import tomllib; print(tomllib.load(open("Cargo.toml", "rb"))["package"]["version"])')
+          test "$TAG" = "v$version"
+      - run: cargo fmt --check
+      - run: cargo test --locked
+      - run: cargo clippy --all-targets --locked -- -D warnings
+      - run: cargo build --release --locked --target ${{ matrix.target }}
+      - name: Smoke-test native binary and package
+        env:
+          TARGET: ${{ matrix.target }}
+          ARCHIVE: ${{ matrix.archive }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          binary="target/$TARGET/release/modafinil"
+          test "$("$binary" --version)" = "modafinil ${TAG#v}"
+          test "$("$binary" check --power battery --mode always --closed-lid)" = "awake=true closed_lid=false"
+          mkdir -p dist
+          tar -czf "dist/$ARCHIVE" -C "target/$TARGET/release" modafinil -C "$GITHUB_WORKSPACE" README.md LICENSE
+          tar -tzf "dist/$ARCHIVE"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.target }}
+          path: dist/*.tar.gz
+          if-no-files-found: error
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v5
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Publish binaries and checksums
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          cd dist
+          sha256sum *.tar.gz > SHA256SUMS
+          cd ..
+          gh release create "$TAG" dist/*.tar.gz dist/SHA256SUMS --verify-tag --title "$TAG" --notes-file docs/release-notes.md
