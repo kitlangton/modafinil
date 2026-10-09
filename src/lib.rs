@@ -123,6 +123,7 @@ pub fn plist(label: &str, args: &[String], log: &str) -> String {
          <key>RunAtLoad</key><true/>\n\
          <key>KeepAlive</key><true/>\n\
          <key>ThrottleInterval</key><integer>2</integer>\n\
+         <key>ExitTimeOut</key><integer>60</integer>\n\
          <key>StandardOutPath</key><string>{}</string>\n\
          <key>StandardErrorPath</key><string>{}</string>\n\
          </dict></plist>\n",

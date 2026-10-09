@@ -113,7 +113,9 @@ cargo install --path . --locked
 
 Tests cover the full policy matrix, strict power/settings parsing, safe plist rendering and CLI behavior without changing sleep settings. `check` is a dry-run policy evaluator and also runs on Linux. All other commands require macOS. Live privileged-helper and physical power/lid tests need a consenting operator; automated CI does not install services or change system sleep settings.
 
-For the initial release, ordinary assertions were also read back on a real Mac: duplicate runners were refused, malformed settings released the assertion, valid settings resumed it, and SIGTERM removed it. Privileged-helper recovery was tested through a mock system adapter. This release's privileged install, physical unplugging and closed-lid operation have not yet been tested on hardware. Treat that mode as experimental until those checks pass on your machine.
+Ordinary assertions were also read back on a real Mac: duplicate runners were refused, malformed settings released the assertion, valid settings resumed it, and SIGTERM removed it. Privileged-helper recovery was tested through a mock system adapter. Root-owned installation, AC activation and graceful stop/restoration were checked on an Apple Silicon Mac. Physical unplugging and closed-lid operation of this Rust helper have not yet been tested on hardware. Treat that mode as experimental until those checks pass on your machine.
+
+Version 0.1.1 waits for launchd to finish unloading services before reinstalling or removing files. A failed service-state read is an error, not evidence a service is absent.
 
 ## License
 

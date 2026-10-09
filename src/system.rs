@@ -142,12 +142,29 @@ fn copy_binary(path: &Path) -> Result {
     save(path, &bytes, 0o755)
 }
 
-fn loaded(service: &str) -> bool {
-    command(LAUNCHCTL, &["print", service]).is_ok()
+fn observed_loaded(result: Result<String>) -> Result<bool> {
+    match result {
+        Ok(_) => Ok(true),
+        Err(error) if error.to_string().contains("Could not find service") => Ok(false),
+        Err(error) => Err(error),
+    }
+}
+fn loaded(service: &str) -> Result<bool> {
+    observed_loaded(command(LAUNCHCTL, &["print", service]))
+}
+fn wait_for_unload(mut inspect: impl FnMut() -> Result<bool>) -> Result {
+    for _ in 0..25 {
+        if !inspect()? {
+            return Ok(());
+        }
+        thread::sleep(Duration::from_millis(200));
+    }
+    Err("launchd has not finished unloading the service; no installed files were removed, retry after it exits".into())
 }
 fn bootout(service: &str) -> Result {
-    if loaded(service) {
+    if loaded(service)? {
         command(LAUNCHCTL, &["bootout", service])?;
+        wait_for_unload(|| loaded(service))?;
     }
     Ok(())
 }
@@ -330,12 +347,12 @@ pub fn status(json: bool) -> Result {
         awake_requested: policy.awake,
         closed_lid_requested: policy.closed_lid,
         start_at_login: user_plist()?.exists(),
-        login_service_loaded: loaded(&user_service()),
-        lid_service_loaded: loaded(&root_service()),
+        login_service_loaded: loaded(&user_service())?,
+        lid_service_loaded: loaded(&root_service())?,
         sleep_disabled: disabled().ok(),
         legacy_helper_loaded: loaded(&format!("gui/{}/local.kit.pro-awake", unsafe {
             libc::getuid()
-        })),
+        }))?,
     };
     if json {
         println!("{}", serde_json::to_string_pretty(&status)?);
@@ -391,7 +408,7 @@ pub fn settings(mode: Option<Mode>, closed_lid: Option<bool>) -> Result {
         if !helper_exists
             && (loaded(&format!("gui/{}/local.kit.pro-awake", unsafe {
                 libc::getuid()
-            })) || disabled()?)
+            }))? || disabled()?)
         {
             return Err("another tool already disables sleep. Stop and remove that tool, restore `sudo pmset -a disablesleep 0`, then enable closed-lid support. Nothing changed.".into());
         }
@@ -454,7 +471,7 @@ pub fn stop() -> Result {
         return Err("closed-lid helper is installed; use `modafinil set --mode off` to stop both modes safely".into());
     }
     bootout(&user_service())?;
-    if loaded(&user_service()) {
+    if loaded(&user_service())? {
         return Err("login service is still loaded".into());
     }
     println!("Login service stopped. Run `modafinil start` to resume.");
@@ -465,7 +482,7 @@ pub fn start() -> Result {
     if !user_plist()?.exists() {
         return Err("run `modafinil install` first".into());
     }
-    if !loaded(&user_service()) {
+    if !loaded(&user_service())? {
         bootstrap(
             &format!("gui/{}", unsafe { libc::getuid() }),
             &user_plist()?,
@@ -604,14 +621,14 @@ pub fn helper_install(mode: Mode) -> Result {
 }
 pub fn helper_remove() -> Result {
     require_root()?;
-    if !Path::new(ROOT_PLIST).exists() && !loaded(&root_service()) {
+    if !Path::new(ROOT_PLIST).exists() && !loaded(&root_service())? {
         return Err(
             "no Modafinil lid helper is installed; leaving system settings untouched".into(),
         );
     }
     bootout(&root_service())?;
     set_disabled(false)?;
-    if loaded(&root_service()) {
+    if loaded(&root_service())? {
         return Err("lid helper is still loaded; refusing removal".into());
     }
     remove_if_exists(Path::new(ROOT_PLIST))?;
@@ -699,5 +716,21 @@ mod tests {
         fs::remove_file(path).unwrap();
         fs::remove_file(target).unwrap();
         fs::remove_dir(dir).unwrap();
+    }
+
+    #[test]
+    fn launchd_missing_service_is_distinct_from_unknown_state() {
+        assert!(observed_loaded(Ok("state = running".into())).unwrap());
+        assert!(!observed_loaded(Err("Could not find service test in domain".into())).unwrap());
+        assert!(observed_loaded(Err("launchctl timed out".into())).is_err());
+        assert!(observed_loaded(Err("Operation not permitted".into())).is_err());
+    }
+
+    #[test]
+    fn waits_for_actual_unload_and_propagates_unknown_state() {
+        let mut states = [Ok(true), Ok(true), Ok(false)].into_iter();
+        wait_for_unload(|| states.next().unwrap()).unwrap();
+        assert!(states.next().is_none());
+        assert!(wait_for_unload(|| Err("read timeout".into())).is_err());
     }
 }
